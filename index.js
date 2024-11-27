@@ -16,4 +16,4 @@ client.on('ready', (client) => {
     console.log(`${client.user.username} is online.`);
 });
 
-client.login(process.env.TOKEN);
+client.login(token);
