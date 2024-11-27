@@ -1,0 +1,14 @@
+{
+  "name": "mafia-text-bot",
+  "version": "1.0.0",
+  "description": "A discord bot that lets you play a game of Mafia - all through text! (No voice channels/chat)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "RanaFahad",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}
