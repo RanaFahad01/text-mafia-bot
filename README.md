@@ -1,6 +1,7 @@
 # mafia-text-bot
 
 ## Getting started with development
+- Set up a bot through the discord developer portal and get a token. Refer to [this tutorial](https://youtu.be/KZ3tIGHU314?si=6hSMe6iZLwZkR_-3) if you need pointers on how to do so
 - Clone this repository
 - Run "npm install" to install the dependencies
 - Create a file named ".env" inside the src/ directory
