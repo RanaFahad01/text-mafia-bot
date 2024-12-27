@@ -4,10 +4,11 @@ const { PermissionsBitField } = require('discord.js');
 
 /**
  * Check if the bot has the needed permissions at the channel and guild levels
- * @param {import('discord.js').ChatInputCommandInteraction} interaction The interaction object
- * @returns {Promise<string[]>} A string array of error messages for missing permissions, one string for each channel and guild permissions (2 strings max)
+ * @param {import('discord.js').Guild} guild The guild object of the server containing the interaction
+ * @param {import('discord.js').GuildTextBasedChannel} channel The channel object of the channel containing the interaction
+ * @returns {Promise<string[]>} A `string` array of error messages for missing permissions, one string for each channel and guild permissions (2 strings max)
  */
-async function checkBotPermissions(interaction) {
+async function checkBotPermissions(guild, channel) {
 
     /**
      * The Array of error messages
@@ -16,7 +17,7 @@ async function checkBotPermissions(interaction) {
     let errorMessages = [];
 
     //The bot's member object in the server
-    const botMember = interaction.guild.members.me;
+    const botMember = guild.members.me;
 
     //Check channel level permissions
     const requiredChannelPermissions = [
@@ -24,7 +25,7 @@ async function checkBotPermissions(interaction) {
         PermissionsBitField.Flags.SendMessages,
         PermissionsBitField.Flags.ManageMessages
     ];
-    const botChannelPermissions = interaction.channel.permissionsFor(botMember);
+    const botChannelPermissions = channel.permissionsFor(botMember);
     const missingChannelPermissions = requiredChannelPermissions.filter(perm => !botChannelPermissions.has(perm));
     if(missingChannelPermissions.length > 0) {
         errorMessages.push(
@@ -63,13 +64,10 @@ async function checkBotPermissions(interaction) {
 
 /**
  * Check if the command user has the "Manage Channels" permission in the guild/server
- * @param {import('discord.js').ChatInputCommandInteraction} interaction The interaction object
- * @returns {Promise<boolean>} true if the user has the permission, false if not
+ * @param {import('discord.js').GuildMember | APIInteractionGuildMember} member The member object of the command caller
+ * @returns {Promise<boolean>} `true` if the user has the permission, `false` if not
  */
-async function checkUserPermission(interaction) {
-    //Member object of the user
-    const member = interaction.member;
-
+async function checkUserPermission(member) {
     //Checking if they have the permission
     const hasManageChannels = member.permissions.has(PermissionsBitField.Flags.ManageChannels);
 
@@ -77,9 +75,27 @@ async function checkUserPermission(interaction) {
 }
 
 /**
+ * Check if the game channel already exists
+ * @param {import('discord.js').Guild} guild The guild object of the server containing the interaction
+ * @returns {Promise<boolean>} `true` if game channel already exists, `false` otherwise
+ */
+async function gameChannelAlreadyExists(guild) {
+    //The target channel name is "tb-mafia-bot-game"
+    const targetName = "tb-mafia-bot-game";
+
+    //All channels in the server
+    const channels = await guild.channels.fetch();
+
+    //Search for a channel with the target name
+    const copycatChannel = channels.find(ch => ch.name === targetName);
+
+    return !!(copycatChannel);
+}
+
+/**
  * Run a series of preliminary checks before the game is run
  * @param {import('discord.js').ChatInputCommandInteraction} interaction The interaction object
- * @returns {Promise<boolean>} true if there was a problem, false if there wasn't
+ * @returns {Promise<boolean>} `true` if there was a problem, `false` if there wasn't
  */
 async function preliminaryChecks(interaction) {
     //Check if the command is being called from a DM
@@ -93,19 +109,32 @@ async function preliminaryChecks(interaction) {
     }
 
     //Check if the user calling the command has the "Manage Channels" permission
-    if(!(await checkUserPermission(interaction))){
+    if(!(await checkUserPermission(interaction.member))){
         await interaction.reply({
-            content: 'In order to start a game, you need to have the "Manage Channels" permission.',
+            content: 'In order to start a game, you need to have the `Manage Channels` permission.',
             ephemeral: true
         });
         return true;
     }
 
     //Check if the bot itself has sufficient permissions on the channel and guild/server levels
-    const permissionErrorMessages = await checkBotPermissions(interaction);
+    const permissionErrorMessages = await checkBotPermissions(interaction.guild, interaction.channel);
     if(!(permissionErrorMessages.length === 0)){
         await interaction.reply({
             content: `${permissionErrorMessages.join('\n')}`,
+            ephemeral: true
+        });
+        return true;
+    }
+
+    //Check if the game channel already exists
+    //(i.e. there's a game going on already or the server just has a channel with that name)
+    if((await gameChannelAlreadyExists(guild))){
+        await interaction.reply({
+            content: `
+There cannot be a channel named "tb-mafia-bot-game" in your server.
+Please use the \`/info\` command for more information.
+            `,
             ephemeral: true
         });
         return true;
