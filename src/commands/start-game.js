@@ -1,7 +1,9 @@
-const {SlashCommandBuilder} = require("discord.js");
+const { SlashCommandBuilder } = require('discord.js');
 
 //The checks needed to do before starting a game
-const {preliminaryChecks} = require('../utility/start-game/start-game-pre-checks');
+const { preliminaryChecks } = require('../utility/start-game/start-game-pre-checks');
+//Other functions used in this command
+const { collectUsers } = require('../utility/start-game/start-game-utils');
 
 module.exports = {
     //Basic command info
@@ -21,10 +23,9 @@ module.exports = {
             return; //Cut the interaction short if there's a problem and my checker method has already replied to the interaction
         }
 
-        //Todo: Continue development from here
-        await interaction.reply({
-            content: "Hello!"
-        });
+        //Collect the players for the game
+        const players = await collectUsers(interaction);
+
 
     }
 }

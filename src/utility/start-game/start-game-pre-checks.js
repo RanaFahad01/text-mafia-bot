@@ -1,6 +1,6 @@
 //The preliminary checks needed before starting a game of Mafia in the server
 
-const {PermissionsBitField} = require("discord.js");
+const { PermissionsBitField } = require('discord.js');
 
 /**
  * Check if the bot has the needed permissions at the channel and guild levels
