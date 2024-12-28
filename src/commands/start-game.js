@@ -3,7 +3,7 @@ const { SlashCommandBuilder } = require('discord.js');
 //The checks needed to do before starting a game
 const { preliminaryChecks } = require('../utility/start-game/start-game-pre-checks');
 //Other functions used in this command
-const { collectUsers } = require('../utility/start-game/start-game-utils');
+const { gameSetUp } = require('../utility/start-game/start-game-utils');
 
 module.exports = {
     //Basic command info
@@ -23,8 +23,12 @@ module.exports = {
             return; //Cut the interaction short if there's a problem and my checker method has already replied to the interaction
         }
 
-        //Collect the players for the game
-        const players = await collectUsers(interaction);
+        //Set up the game
+        const game = await gameSetUp(interaction);
+        //Cut the interaction short if there's not enough players
+        if(!game){
+            return;
+        }
 
         //TODO: Continue the game logic from here
 
