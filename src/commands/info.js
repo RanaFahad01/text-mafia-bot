@@ -12,6 +12,7 @@ Play a game of mafia right in the comfort of your discord server, without the ne
 
 ### Requirements to run the \`start-mafia-game\` command:
 - The user calling the command must have the \`Manage Channels\` permission.
+- A game of mafia can have a maximum of 10 players
 - There cannot be two games of Mafia in progress at the same time in the same server.
 - There must not be another channel named \`tb-mafia-bot-game\` in the server. Either there's a game already going on, or you need to rename that channel.
 - The bot must have these permissions at the channel level:

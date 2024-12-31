@@ -1,4 +1,5 @@
 const { MafiaPlayer } = require('./mafia-player');
+const { Snowflake } = require('discord.js')
 
 /**
  * Represents a game
@@ -14,6 +15,18 @@ class GameData {
          * @type {MafiaPlayer[]}
          */
         this.players = players.map(player => new MafiaPlayer(player));
+
+        /**
+         * Array of all the alive players in the game
+         * @type {MafiaPlayer[]}
+         */
+        this.alivePlayers = [...this.players];
+
+        /**
+         * Array of `Snowflake` IDs of all the dead players in the game
+         * @type {Snowflake[]}
+         */
+        this.deadPlayerIDs = [];
 
         // Game roles
         /**

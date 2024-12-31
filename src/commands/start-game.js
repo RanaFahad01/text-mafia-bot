@@ -30,7 +30,11 @@ module.exports = {
             return;
         }
 
-        //TODO: Continue the game logic from here
+        /*
+        TODO: Continue the game logic from here
+        - Write a util function that makes a new channel with an array of chosen ppl
+        - etc etc
+         */
 
     }
 }
