@@ -1,5 +1,20 @@
-const { MafiaPlayer } = require('./mafia-player');
-const { Snowflake } = require('discord.js')
+const { User, Snowflake } = require('discord.js')
+
+/**
+ * Represents a Mafia player in the game
+ * @extends User The User class in discordJS
+ */
+class MafiaPlayer extends User {
+    /**
+     * Creates a new Mafia Player from a User object
+     * @param {User} user The User object
+     * @param {boolean} isMafia Whether it's a mafia or not
+     */
+    constructor(user, isMafia = false) {
+        super(user.client, user); // Pass the user object and client to the parent class
+        this.isMafia = isMafia; // Add the custom property
+    }
+}
 
 /**
  * Represents a game
@@ -105,6 +120,23 @@ class GameData {
     }
 }
 
+/**
+ * Represents game results
+ */
+class GameResult {
+    /**
+     * Creates a Game Result
+     * @param {boolean} winnerTeam `true` if the mafia won, `false` if townspeople won
+     * @param {MafiaPlayer[]} winners Array of MafiaPlayer objects of the winning team's players
+     */
+    constructor(winnerTeam, winners) {
+        this.winnerTeam = winnerTeam;
+        this.winners = winners;
+    }
+}
+
 module.exports = {
-    GameData
+    MafiaPlayer,
+    GameData,
+    GameResult
 }

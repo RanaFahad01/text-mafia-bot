@@ -9,15 +9,14 @@ const {
     ChannelType, StringSelectMenuBuilder
 } = require('discord.js');
 
-const { MafiaPlayer } = require('./classes/mafia-player');
-const { GameData } = require('./classes/game-data');
+const { MafiaPlayer, GameData } = require('./classes/game-data');
 
 /**
  * Takes a poll and returns the choice that was most voted for
  * @param {import('discord.js').GuildTextBasedChannel} channel The channel to post the poll in
  * @param {GameData} game A `GameData` reference object containing information for the game that's going on
  * @param {boolean} isMafiaPoll Whether the poll is a mafia poll or not (false by default -> townspeople vote)
- * @return {MafiaPlayer} The mafia player that was most voted on
+ * @return {Promise<MafiaPlayer> | null} The mafia player that was most voted on, null if tied
  */
 async function takePoll(channel, game, isMafiaPoll= false){
     /*
@@ -30,6 +29,8 @@ async function takePoll(channel, game, isMafiaPoll= false){
 
     //Array of alive MafiaPlayers
     const alivePlayers = game.alivePlayers;
+    //Array of dead MafiaPlayer IDs (Snowflake type IDs)
+    const deadPlayerIDs = game.deadPlayerIDs;
 
     //Map for storing vote counts
     const voteMap = new Map();
@@ -80,20 +81,134 @@ async function takePoll(channel, game, isMafiaPoll= false){
         });
     }
 
-    //Create a collector to listen for interactions
-    const collector = initialMsg.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 10_000  //Voting lasts for 10 seconds or 10,000ms
-    });
+    //To return from the outside function, we use a promise:
+    return new Promise((resolve) => {
+        //Create a collector to listen for interactions
+        const collector = initialMsg.createMessageComponentCollector({
+            componentType: ComponentType.StringSelect,
+            time: 10_000  //Voting lasts for 10 seconds or 10,000ms
+        });
 
+        collector.on('collect', async (menuInteract) => {
+            const voter = menuInteract.user; //Guy who voted
+
+            //Reject interaction if the guy is dead
+            if(deadPlayerIDs.find((id) => id === voter.id)){
+                await menuInteract.reply({
+                   content: 'You are dead and cannot vote!',
+                   ephemeral: true
+                });
+                return;
+            }
+
+            //Get the selected player's ID and increase their vote count
+            const selectedPlayerID = menuInteract.values[0];
+            const selectedPlayer = alivePlayers.find((player) => player.id === selectedPlayerID);
+
+            if(selectedPlayer){
+                voteMap.set(selectedPlayer, voteMap.get(selectedPlayer) + 1);
+
+                //Acknowledge the vote
+                await menuInteract.reply({
+                    content: `You voted for ${selectedPlayer.displayName}.`,
+                    ephemeral: true
+                });
+            }
+        });
+
+        collector.on('end', async () => {
+            selectMenu.setDisabled(true);  //Disable the select menu
+            const rowOff = new ActionRowBuilder().addComponents(selectMenu);
+
+            await initialMsg.edit({
+                content: 'Voting has ended!',
+                components: [rowOff]
+            });
+
+            //Displaying the final votes
+            let resultMessage = 'Voting results:\n';
+            let maxVotes = 0;
+            let mostVotedPlayer = null;
+            let tie = false;
+
+            for (const [player, votes] of voteMap.entries()) {
+                resultMessage += `${player.displayName}: ${votes} votes\n`;
+
+                if (votes > maxVotes) {
+                    maxVotes = votes;
+                    mostVotedPlayer = player;
+                    tie = false; // Clear previous tie state
+                } else if (votes === maxVotes) {
+                    tie = true;
+                }
+            }
+
+            //Post the results
+            await initialMsg.followUp({
+                content: resultMessage,
+                ephemeral: false
+            });
+
+            //Return either the most voted player, or null if it's a tie
+            resolve(tie? null : mostVotedPlayer);
+        });
+    });
 
 }
 
-//Create channel, takes (channel-name, allow-user-IDs)
-//Returns channel
+/**
+ * Creates a Mafia game channel and returns it
+ * @param {import('discord.js').Guild} guild The guild object
+ * @param {GameData} game The current game going on
+ * @param {boolean} isMafiaTurn true if it's a mafia turn, false if townspeople
+ * @return {import('discord.js').GuildTextBasedChannel} The created channel
+ */
+async function createGameChannel(guild, game, isMafiaTurn = true){
+    //Array of allowed players (In case of Mafia turn, only mafias can see it)
+    const players = isMafiaTurn? game.mafias: game.players;
+    const channelName = isMafiaTurn? 'mafia-only-channel-mafia-bot-game': 'tb-mafia-bot-game';
+
+    //Permission overwrites
+    const permOverwrites = players.map((player) => ({
+        id: player.id,
+        allow: [PermissionFlagsBits.ViewChannel]
+    }));
+
+    //Deny access to @everyone
+    permOverwrites.push({
+        id: guild.roles.everyone.id, //@everyone role ID
+        deny: [PermissionFlagsBits.ViewChannel]
+    });
+
+    //Create the channel
+    const channel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        permissionOverwrites: permOverwrites
+    });
+
+    //Ping all the users
+    const welcomeMsg = isMafiaTurn? `Welcome to Round ${game.round}, Mafia members!\n`: `Welcome to Mafia!\n`;
+    const mentions = players.map( (player) => `<@${player.id}>`).join(', ');
+    await channel.send({
+        content: `${welcomeMsg + mentions}`,
+        ephemeral: false
+    });
+
+    //Return the channel
+    return channel;
+}
 
 
+//Kill player,takes MafiaPlayer object to kill, returns void
+//Killing logic:
+//- Remove dead player from aliveplayers array using his ID
+//- Push dead player's ID to deadPlayersIDs array
 
+
+//runRound(game) will run a whole round
+
+//runGame(game) will run a whole game using runRounds until there's a conclusion
 
 
 
