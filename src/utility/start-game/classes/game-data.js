@@ -70,7 +70,6 @@ class GameData {
 
         // Additional game properties
         this.round = 1; // Keep track of the game round
-        this.isNight = false; // Whether it's currently night phase
     }
 
     // Method to assign roles
