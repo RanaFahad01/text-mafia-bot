@@ -9,7 +9,7 @@ const {
     ChannelType, StringSelectMenuBuilder
 } = require('discord.js');
 
-const { MafiaPlayer, GameData } = require('./classes/game-data');
+const { MafiaPlayer, GameData, GameResult } = require('./classes/game-data');
 
 /**
  * Pauses execution for the duration given
@@ -371,14 +371,6 @@ async function runRound(game, mainChannel, guild, client){
 
     const allPlayerIDs = game.players.map(player => player.id);
 
-    //DEVELOPMENT: Have the runGame method do this at first
-    await updateChannelPermissions(
-        mainChannel,
-        allPlayerIDs,
-        game.deadPlayerIDs,
-        false
-    );
-
     //Send the initial message at the start of a round
     await mainChannel.send({
         content: `Round ${game.round} begins!\nThe Mafia will now decide on their victim.`
@@ -546,7 +538,53 @@ async function runRound(game, mainChannel, guild, client){
 }
 
 //runGame(game, client) will run a whole game using runRounds until there's a conclusion
+/**
+ * Runs a whole game of mafia using the runRound method until the win condition is met
+ * @param {GameData} game The game to run
+ * @param {Client} client The bot's client object
+ * @param {import('discord.js').Guild} guild The guild object
+ * @return {GameResult} The result of the game
+ */
+async function runGame(game, client, guild){
+    //The main slash command file will call the runGame method after gameSetUp is done
 
+    //1. Make the main channel
+    const mainChannel = await createGameChannel(guild, game, false);
+
+    //2. Put everyone to sleep there
+    await updateChannelPermissions(
+        mainChannel,
+        game.players.map(player => player.id),
+        game.deadPlayerIDs,
+        false
+    );
+
+    //3. A loop will run until the game is over
+    // - The mafias win if the number of alive mafias >= number of alive townspeople
+    // - The townspeople win if the number of alive mafias === 0
+
+    let aliveTownsPeopleAmount;
+    let aliveMafiasAmount;
+
+    while (true) {
+        //Run a round
+        await runRound(game, mainChannel, guild, client);
+        //Pause a second
+        await pause(1);
+        //Update the conditions
+        aliveTownsPeopleAmount = game.townspeople.filter(person => !game.deadPlayerIDs.includes(person.id)).length;
+        aliveMafiasAmount = game.mafias.filter(mafia => !game.deadPlayerIDs.includes(mafia.id)).length;
+
+        //Check the conditions to break the loop
+        if(aliveMafiasAmount >= aliveTownsPeopleAmount){
+            return new GameResult(true, game.mafias);
+        } else if (aliveMafiasAmount === 0) {
+            return new GameResult(false, game.townspeople);
+        }
+
+        //If none of the win conditions are met, the game will keep on going
+    }
+}
 
 
 
@@ -618,7 +656,7 @@ async function gameSetUp(interaction){
                     });
                 }
             } else if (btnInteract.customId === 'signout') {
-                playerUsers = playerUsers.filter((u) => u.id !== intUser);
+                playerUsers = playerUsers.filter((u) => u.id !== intUser.id);
 
                 await btnInteract.reply({
                     content: 'You have left the lobby.',
@@ -701,5 +739,6 @@ async function gameSetUp(interaction){
 
 
 module.exports = {
-    gameSetUp
+    gameSetUp,
+    runGame
 }

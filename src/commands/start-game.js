@@ -2,9 +2,9 @@ const { SlashCommandBuilder } = require('discord.js');
 
 //The checks needed to do before starting a game
 const { preliminaryChecks } = require('../utility/start-game/start-game-pre-checks');
-//Other functions used in this command
-const { gameSetUp } = require('../utility/start-game/start-game-utils');
-
+//Other functions and classes used in this command
+const { gameSetUp, runGame } = require('../utility/start-game/start-game-utils');
+const { GameResult } = require('../utility/start-game/classes/game-data')
 module.exports = {
     //Basic command info
     data: new SlashCommandBuilder()
@@ -30,11 +30,16 @@ module.exports = {
             return;
         }
 
-        /*
-        TODO: Continue the game logic from here
-        - Write a util function that makes a new channel with an array of chosen ppl
-        - etc etc
-         */
+        //Run the game
+        const gameResult = await runGame(game, interaction.client, interaction.guild);
+
+        //Process and post the results
+        const winningTeam = (gameResult.winnerTeam)? 'mafia': 'townspeople';
+        const mentions = gameResult.winners.map(winner => `<@${winner.id}>`).join('\n');
+        await interaction.followUp({
+            content: `The game was won by the ${winningTeam}! The member(s) of the winning team are:\n${mentions}`,
+            ephemeral: false
+        });
 
     }
 }
