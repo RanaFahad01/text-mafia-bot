@@ -66,7 +66,7 @@ async function takeDMPoll(playerID, game, client, officerType) {
         // Create a collector to listen for the player's selection
         const collector = dmMessage.createMessageComponentCollector({
             componentType: ComponentType.StringSelect,
-            time: 15_000 // Voting period is 15 seconds
+            time: 30_000 // Voting period is 30 seconds
         });
 
         // Handle the vote
@@ -98,8 +98,8 @@ async function takeDMPoll(playerID, game, client, officerType) {
                     //If detective
                     await menuInteraction.reply({
                         content: (selectedPlayer.isMafia)
-                            ? `You voted for ${selectedPlayer.displayName}, who IS a Mafia.`
-                            : `You voted for ${selectedPlayer.displayName}, who is NOT a Mafia.`,
+                            ? `**You voted for ${selectedPlayer.displayName}, who IS a Mafia.**`
+                            : `**You voted for ${selectedPlayer.displayName}, who is NOT a Mafia.**`,
                         ephemeral: true
                     });
                 }
@@ -112,7 +112,7 @@ async function takeDMPoll(playerID, game, client, officerType) {
             collector.on('end', async (_, reason) => {
                 if (reason !== 'user') {
                     // No vote was made in time
-                    await officer.send('You didn’t vote in time!');
+                    await officer.send('**You didn’t vote in time!**');
                     resolve(null);
                 }
             });
@@ -162,10 +162,19 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
     }
 
     //Create the select menu options
-    const options = alivePlayers.map((player) => ({
-        label: player.displayName,
-        value: player.id
-    }));
+    //If mafia poll, then only townspeople are the options
+    let options;
+    if(isMafiaPoll) {
+        options = alivePlayers.filter(player => !player.isMafia).map((player) => ({
+            label: player.displayName,
+            value: player.id
+        }));
+    } else {
+        options = alivePlayers.map((player) => ({
+            label: player.displayName,
+            value: player.id
+        }));
+    }
 
     //Build the select menu
     const selectMenu = new StringSelectMenuBuilder()
@@ -198,7 +207,7 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
         //Create a collector to listen for interactions
         const collector = initialMsg.createMessageComponentCollector({
             componentType: ComponentType.StringSelect,
-            time: 10_000  //Voting lasts for 10 seconds or 10,000ms
+            time: 20_000  //Voting lasts for 20 seconds or 20,000ms
         });
 
         collector.on('collect', async (menuInteract) => {
@@ -291,6 +300,12 @@ async function createGameChannel(guild, game, isMafiaTurn = true){
         allow: [PermissionFlagsBits.ViewChannel]
     }));
 
+    //Make sure the bot itself has access
+    permOverwrites.push({
+        id: guild.members.me.id, // Bot's ID
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
+    });
+
     //Deny access to @everyone
     permOverwrites.push({
         id: guild.roles.everyone.id, //@everyone role ID
@@ -329,7 +344,7 @@ async function updateChannelPermissions(channel, playerIDs, deadPlayerIDs, allow
         // Dead players will always not be able to send messages
         for (const playerID of playerIDs) {
             await channel.permissionOverwrites.edit(playerID, {
-                SEND_MESSAGES: (deadPlayerIDs.includes(playerID))
+                [PermissionFlagsBits.SendMessages]: (deadPlayerIDs.includes(playerID))
                     ? false
                     : allowSendMessages
             });
@@ -355,8 +370,6 @@ async function killPlayer(targetPlayer, game){
     game.deadPlayerIDs.push(targetPlayer.id);
 }
 
-
-//runRound(game, client) will run a whole round
 /**
  * Runs a whole round, starting from nighttime (mafia vote) and ending with daytime (townspeople vote)
  * @param {GameData} game The game currently going on
@@ -373,21 +386,21 @@ async function runRound(game, mainChannel, guild, client){
 
     //Send the initial message at the start of a round
     await mainChannel.send({
-        content: `Round ${game.round} begins!\nThe Mafia will now decide on their victim.`
+        content: `\n\n**Round ${game.round} begins!**\nThe Mafia will now decide on their victim.\n`
     });
 
-    //Pause for 2 seconds
-    await pause(2);
+    //Pause for 5 seconds
+    await pause(5);
 
     //Create a channel for the mafia
-    const mafiaChannel = createGameChannel(guild, game);
+    const mafiaChannel = await createGameChannel(guild, game);
 
-    //Pause for 2 seconds
-    await pause(2);
+    //Pause for 5 seconds
+    await pause(5);
 
     //Notify the mafia about discussion period
     await mafiaChannel.send({
-        content: `Your discussion period has started! It will end in 1 minute and voting will begin.`,
+        content: `Your discussion period has started! It will end in 1 minute and voting will begin.\n`,
         ephemeral: false
     });
 
@@ -416,6 +429,9 @@ async function runRound(game, mainChannel, guild, client){
         content: `The mafia vote has ended!`
     });
 
+    //Wait 3 seconds
+    await pause(3);
+
     //If there is a doctor, notify the townspeople and get the doctor's vote
     let doctorPollResult;
     if(game.doctor){
@@ -425,6 +441,8 @@ async function runRound(game, mainChannel, guild, client){
         await pause(1);  //Pause for 1 second
 
         doctorPollResult = await takeDMPoll(game.doctor.id, game, client, false);
+
+        await pause(3);
     }
     //If there is a detective, notify the townspeople and get the detective's vote
     if(game.detective){
@@ -452,7 +470,7 @@ async function runRound(game, mainChannel, guild, client){
 
                 //Make the statement (Mafia chose + doctor chose + doctor didn't save)
                 await mainChannel.send({
-                    content: `During the night, the mafia chose ${mafiaPollResult.displayName} as their victim and were successful in killing them.\nMay they rest in peace.`
+                    content: `**During the night, the mafia chose ${mafiaPollResult.displayName} as their victim and were successful in killing them.**\nMay they rest in peace.`
                 });
                 await pause(5);  //Pause for 5 seconds
             } else if(mafiaPollResult.id === doctorPollResult.id) {
@@ -460,7 +478,7 @@ async function runRound(game, mainChannel, guild, client){
 
                 //Make the statement (Mafia chose + doctor chose + doctor saved)
                 await mainChannel.send({
-                    content: `During the night, the mafia chose their victim but were unable to kill them!`
+                    content: `**During the night, the mafia chose their victim but were unable to kill them!**`
                 });
                 await pause(5);  //Pause for 5 seconds
             }
@@ -473,7 +491,7 @@ async function runRound(game, mainChannel, guild, client){
 
             //Make the statement (Mafia chose + doctor didn't choose)
             await mainChannel.send({
-                content: `During the night, the mafia chose ${mafiaPollResult.displayName} as their victim and were successful in killing them.\nMay they rest in peace.`
+                content: `**During the night, the mafia chose ${mafiaPollResult.displayName} as their victim and were successful in killing them.**\nMay they rest in peace.`
             });
             await pause(5);  //Pause for 5 seconds
         }
@@ -482,14 +500,14 @@ async function runRound(game, mainChannel, guild, client){
     else {
         //Make the statement (Mafia didn't choose)
         await mainChannel.send({
-            content: `The sun rises on the town and everyone wakes up. No casualties tonight.`
+            content: `**The sun rises on the town and everyone wakes up. No casualties tonight.**`
         });
         await pause(5);  //Pause for 5 seconds
     }
 
     //Talk about the discussion period
     await mainChannel.send({
-        content: `Discussion time will start in 3 seconds and will go for 3 minutes.\nYou can discuss on who you think the mafia is, and then vote to have them executed.`
+        content: `\n\n**Discussion time will start in 3 seconds and will go for 3 minutes.**\n**You can discuss on who you think the mafia is, and then vote to have them executed.**`
     });
     await pause(3);  //Pause for 3 seconds
 
@@ -500,7 +518,9 @@ async function runRound(game, mainChannel, guild, client){
         game.deadPlayerIDs,
         true
     );
-    await pause(180);  //Pause for 3 minutes
+
+    //DEVELOPMENT: MAKE DISCUSSION TIME 1 MIN INSTEAD OF 3 MIN
+    await pause(60);  //Pause for 3 minutes
 
     //Take away talking perms
     await updateChannelPermissions(
@@ -517,21 +537,22 @@ async function runRound(game, mainChannel, guild, client){
     //Results based on the vote
     //If townspeople could agree on a person
     if(townspeopleVoteResult){
+        await killPlayer(townspeopleVoteResult, game);
         await mainChannel.send({
             content: (townspeopleVoteResult.isMafia)
-                ? `The townspeople voted, and thus ${townspeopleVoteResult.displayName} was executed.\nIt was later revealed that they were a mafia.`
-                : `The townspeople voted, and thus ${townspeopleVoteResult.displayName} was executed.\nThey were not a mafia and will be missed by their family.`
+                ? `\n\n**The townspeople voted, and thus ${townspeopleVoteResult.displayName} was executed.\nIt was later revealed that they were a mafia.**`
+                : `\n\n**The townspeople voted, and thus ${townspeopleVoteResult.displayName} was executed.\nThey were not a mafia and will be missed by their family.**`
         });
     } else {
         //If they couldn't
         await mainChannel.send({
-            content: `The townspeople could not decide on who to execute, so everyone gets to live for today.`
+            content: `\n\n**The townspeople could not decide on who to execute, so everyone gets to live for today.**`
         });
     }
 
     //Everyone goes back to sleep
     await mainChannel.send({
-        content: `After a long day of being lazy, the townspeople go back to sleep.`
+        content: `\nAfter a long day of being lazy, the townspeople go back to sleep.\n`
     });
     await pause(5);
 
@@ -583,6 +604,7 @@ async function runGame(game, client, guild){
         }
 
         //If none of the win conditions are met, the game will keep on going
+        game.round = game.round + 1;
     }
 }
 
@@ -699,9 +721,9 @@ async function gameSetUp(interaction){
                 const mafias = game.mafias.map(p => p.displayName).join(', ');
                 const detective = game.detective?.displayName;
                 const doctor = game.doctor?.displayName;
-                //DEVELOPMENT ONLY: Take a random person from the alive players and make them dead
-                const chosenDeadPlayer = game.alivePlayers.pop();
-                game.deadPlayerIDs.push(chosenDeadPlayer.id);
+                // //DEVELOPMENT ONLY: Take a random person from the alive players and make them dead
+                // const chosenDeadPlayer = game.alivePlayers.pop();
+                // game.deadPlayerIDs.push(chosenDeadPlayer.id);
 
                 await interaction.followUp({
                     content: `The roles for the upcoming game:
@@ -713,18 +735,16 @@ async function gameSetUp(interaction){
   - ${detective}
 - The doctor (undefined if none):
   - ${doctor}
-- The randomly chosen dead player:
-  - ${chosenDeadPlayer.displayName}
                     `
                 })
 
-                //DEVELOPMENT ONLY: TEST VOTING HERE FIRST
-
-                //Run a simple DM test for the detective
-                //Display the chosen person
-                await interaction.followUp({
-                    content: `The chosen person is ${(chosenPlayer)? chosenPlayer.displayName: '(None, there was a draw!)'}`
-                });
+                // //DEVELOPMENT ONLY: TEST VOTING HERE FIRST
+                //
+                // //Run a simple DM test for the detective
+                // //Display the chosen person
+                // await interaction.followUp({
+                //     content: `The chosen person is ${(chosenPlayer)? chosenPlayer.displayName: '(None, there was a draw!)'}`
+                // });
 
 
 

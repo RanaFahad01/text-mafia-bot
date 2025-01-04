@@ -40,7 +40,8 @@ async function checkBotPermissions(guild, channel) {
     //Check server/guild level permissions
     const requiredGuildPermissions = [
         PermissionsBitField.Flags.ManageRoles,
-        PermissionsBitField.Flags.ManageChannels
+        PermissionsBitField.Flags.ManageChannels,
+        PermissionsBitField.Flags.SendMessages
     ];
     const missingGuildPermissions = requiredGuildPermissions.filter(perm => !botMember.permissions.has(perm));
     if(missingGuildPermissions.length > 0) {
