@@ -143,6 +143,8 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
     const alivePlayers = game.alivePlayers;
     //Array of dead MafiaPlayer IDs (Snowflake type IDs)
     const deadPlayerIDs = game.deadPlayerIDs;
+    //Array of Mafia IDs (Used in the anti-admin voting bugfix)
+    const mafiaIDs = (isMafiaPoll)? game.mafias.map(mafia => mafia.id) : [];
 
     //Map for storing vote counts
     const voteMap = new Map();
@@ -189,14 +191,14 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
     let initialMsg;
     if(isMafiaPoll === true) {
         initialMsg = await channel.send({
-            content: 'Team Mafia, you will now vote for the next townsperson you want to kill.\nIn case of a draw, nobody dies.\nVoting ends in 10 seconds.',
+            content: 'Team Mafia, you will now vote for the next townsperson you want to kill.\nIn case of a draw, nobody dies.\nVoting ends in 20 seconds.',
             components: [row],
             ephemeral: false
         });
     //For townspeople polls
     } else {
         initialMsg = await channel.send({
-            content: 'Townspeople, you will now vote for the next person you want to execute.\nIn case of a draw, nobody dies.\nVoting ends in 10 seconds.',
+            content: 'Townspeople, you will now vote for the next person you want to execute.\nIn case of a draw, nobody dies.\nVoting ends in 20 seconds.',
             components: [row],
             ephemeral: false
         });
@@ -210,16 +212,49 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
             time: 20_000  //Voting lasts for 20 seconds or 20,000ms
         });
 
+
+        /**
+         * Array of voter IDs
+         * (Bugfix for players being able to multi-vote)
+         * @type {Array<import('discord.js').Snowflake>}
+         */
+        let voterIDs = [];
+
         collector.on('collect', async (menuInteract) => {
             const voter = menuInteract.user; //Guy who voted
 
             //Reject interaction if the guy is dead
-            if(deadPlayerIDs.find((id) => id === voter.id)){
+            if(deadPlayerIDs.includes(voter.id)){
                 await menuInteract.reply({
                    content: 'You are dead and cannot vote!',
                    ephemeral: true
                 });
                 return;
+            }
+
+            //Reject interaction if the guy already voted before
+            if(voterIDs.includes(voter.id)){
+                await menuInteract.reply({
+                    content: 'You have already casted a vote!',
+                    ephemeral: true
+                });
+                return;
+            }
+
+            //If mafia poll, reject interaction if the guy is not a mafia. Also call them out so everyone knows they're a cheater
+            //(Bugfix for bug where admins can view the mafia channel and vote)
+            if(isMafiaPoll){
+                if(!mafiaIDs.includes(voter.id)){
+                    await menuInteract.reply({
+                        content: `You're not a mafia, you shouldn't even be here!`,
+                        ephemeral: true
+                    });
+                    await menuInteract.followUp({
+                        content: `**WARNING: A non-mafia member of the server, <@${voter.id}>, is trying to manipulate votes.**`,
+                        ephemeral: false
+                    });
+                    return;
+                }
             }
 
             //Get the selected player's ID and increase their vote count
@@ -228,6 +263,7 @@ async function takeChannelPoll(channel, game, isMafiaPoll= false){
 
             if(selectedPlayer){
                 voteMap.set(selectedPlayer, voteMap.get(selectedPlayer) + 1);
+                voterIDs.push(voter.id);  //Add the voter's ID to the voter ID array
 
                 //Acknowledge the vote
                 await menuInteract.reply({
@@ -394,6 +430,15 @@ async function runRound(game, mainChannel, guild, client){
 
     //Create a channel for the mafia
     const mafiaChannel = await createGameChannel(guild, game);
+
+    //Update the mafia's permissions (even though they already have send_msg perms)
+    //(Bugfix for when the dead mafias can still send messages in the mafia channel)
+    await updateChannelPermissions(
+        mafiaChannel,
+        game.mafias.map(mafia => mafia.id),
+        game.deadPlayerIDs,
+        true
+    );
 
     //Pause for 5 seconds
     await pause(5);
@@ -598,8 +643,10 @@ async function runGame(game, client, guild){
 
         //Check the conditions to break the loop
         if(aliveMafiasAmount >= aliveTownsPeopleAmount){
+            await mainChannel.delete();  //Delete the main channel (Bugfix)
             return new GameResult(true, game.mafias);
         } else if (aliveMafiasAmount === 0) {
+            await mainChannel.delete();  //Delete the main channel (Bugfix)
             return new GameResult(false, game.townspeople);
         }
 
