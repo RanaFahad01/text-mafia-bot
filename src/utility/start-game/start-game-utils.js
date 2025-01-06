@@ -485,10 +485,14 @@ async function runRound(game, mainChannel, guild, client){
         });
         await pause(1);  //Pause for 1 second
 
-        doctorPollResult = await takeDMPoll(game.doctor.id, game, client, false);
+        //If the doctor is dead, just skip this part
+        if(!game.deadPlayerIDs.includes(game.doctor.id)) {
+            doctorPollResult = await takeDMPoll(game.doctor.id, game, client, false);
 
-        await pause(3);
+            await pause(3);
+        }
     }
+
     //If there is a detective, notify the townspeople and get the detective's vote
     if(game.detective){
         await mainChannel.send({
@@ -496,7 +500,11 @@ async function runRound(game, mainChannel, guild, client){
         });
         await pause(1);  //Pause for 1 second
 
-        await takeDMPoll(game.detective.id, game, client, true);
+        //If the detective is dead, just skip this part
+        if(!game.deadPlayerIDs.includes(game.detective.id)) {
+            await takeDMPoll(game.detective.id, game, client, true);
+            await pause(1);
+        }
     }
 
     //Now that the polls are done, we have to give a statement to the public about the night
